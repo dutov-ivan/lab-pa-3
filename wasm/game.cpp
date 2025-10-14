@@ -1,9 +1,28 @@
-#include "tictactoe.h"
+#include "game.h"
 #include <iostream>
 
 Game::Game()
 {
     reset();
+}
+
+bool Game::makeMove(int x, int y, int z)
+{
+    if (x < 0 || x >= 4 || y < 0 || y >= 4 || z < 0 || z >= 4)
+        return false;
+
+    uint64_t move_bit = bit_at(x, y, z);
+    if ((board_.x_mask & move_bit) || (board_.o_mask & move_bit))
+        return false; // Cell already occupied
+
+    if (currentPlayer_ == Player::X) {
+        board_.x_mask |= move_bit;
+        currentPlayer_ = Player::O;
+    } else {
+        board_.o_mask |= move_bit;
+        currentPlayer_ = Player::X;
+    }
+    return true;
 }
 
 GameState Game::checkGameState() const

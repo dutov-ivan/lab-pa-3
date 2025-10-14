@@ -1,5 +1,5 @@
-#ifndef CONSTANTS_H
-#define CONSTANTS_H
+#ifndef LAB_CONSTANTS_H
+#define LAB_CONSTANTS_H
 
 #include <cstdint>
 #include <array>
@@ -92,4 +92,4 @@ constexpr std::array<uint64_t, 76> generate_win_masks() {
 inline constexpr std::array<uint64_t, 76> WIN_MASKS = generate_win_masks();
 
 
-#endif // CONSTANTS_H
+#endif // LAB_CONSTANTS_H

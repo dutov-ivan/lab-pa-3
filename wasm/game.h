@@ -10,7 +10,7 @@ enum class GameState { ONGOING, DRAW, X_WINS, O_WINS };
 class Game {
 public:
     Game();
-    bool makeMove(int row, int col, Player player);
+    bool makeMove(int x, int y, int z);
     GameState checkGameState() const;
     void reset();
 

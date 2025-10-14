@@ -5,7 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 
 add_executable(TicTacToe3D
     main.cpp
-    tictactoe.cpp
+    engine.cpp
+    game.cpp
 )
 
 # target_link_options(TicTacToe3D PRIVATE
