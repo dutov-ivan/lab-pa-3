@@ -10,7 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "tailwind-merge": "^3.3.1"
+    "@react-three/drei": "^10.7.6",
+    "@react-three/fiber": "^9.4.0",
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.180.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",

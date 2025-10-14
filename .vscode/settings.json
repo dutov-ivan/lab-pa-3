@@ -76,7 +76,8 @@
         "print": "cpp",
         "queue": "cpp",
         "stack": "cpp",
-        "coroutine": "cpp"
+        "coroutine": "cpp",
+        "cinttypes": "cpp"
     },
     "cmake.sourceDirectory": "/home/ivan/code/lab-pa-3/wasm",
 }
