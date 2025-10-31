@@ -3,6 +3,7 @@ import "./App.css";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 import * as THREE from "three";
+import useInteractions from "./hooks/useInteractions";
 
 type Player = "X" | "O" | " ";
 
@@ -26,34 +27,29 @@ export default function App() {
   const [board, setBoard] = React.useState<Player[][][]>(initializeBoard);
   const [currentPlayer, setCurrentPlayer] = React.useState<Player>("X");
   // spacing state (controls distance between cubes)
-  const [spacing, setSpacing] = React.useState<number>(DEFAULT_SPACING);
+  // interaction hooks: spacing, touch/wheel/shift handlers
+  const {
+    spacing,
+    isMobile,
+    isShiftDown,
+    onWheel,
+    onTouchStart,
+    onTouchMove,
+    onTouchEnd,
+    increaseSpacing,
+    decreaseSpacing,
+    resetSpacing,
+  } = useInteractions(DEFAULT_SPACING, {
+    minSpacing: MIN_SPACING,
+    maxSpacing: MAX_SPACING,
+    step: SPACING_STEP,
+  });
+
   // UI-only control panel state (no gameplay logic yet)
   const [playerSide, setPlayerSide] = React.useState<"X" | "O">("X");
   const [aiLevel, setAiLevel] = React.useState<"easy" | "medium" | "hard">(
     "medium"
   );
-  // track whether Shift is currently held so we can disable OrbitControls zoom while adjusting spacing
-  const [isShiftDown, setIsShiftDown] = React.useState<boolean>(false);
-
-  React.useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Shift") setIsShiftDown(true);
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Shift") setIsShiftDown(false);
-    };
-    const onBlur = () => setIsShiftDown(false);
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, []);
-
   const handleClick = (z: number, y: number, x: number) => {
     // If the cell is already taken, do nothing.
     if (board[z][y][x] !== " ") {
@@ -80,38 +76,33 @@ export default function App() {
   // center offset so the cube cluster is centered at origin (recomputed when spacing changes)
   const centerOffset = ((SIZE - 1) * spacing) / 2;
 
-  // wheel handler: default wheel (no modifier) should zoom the scene.
-  // When Shift is held, wheel adjusts spacing instead (shift+scroll).
-  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    // If Shift isn't held, allow default behavior (OrbitControls wheel-zoom) to run.
-    if (!e.shiftKey) {
-      return;
-    }
-
-    // When Shift is held, intercept the wheel and change spacing.
-    e.preventDefault();
-    e.stopPropagation();
-
-    const delta = e.deltaY;
-    // increase spacing on wheel up (deltaY < 0), decrease on wheel down
-    const change = delta < 0 ? SPACING_STEP : -SPACING_STEP;
-    setSpacing((s) => {
-      const next = Math.min(
-        MAX_SPACING,
-        Math.max(MIN_SPACING, +(s + change).toFixed(3))
-      );
-      return next;
-    });
-  };
-
   return (
-    <div style={{ width: "100vw", height: "100vh" }} onWheel={handleWheel}>
+    <div
+      style={{ width: "100vw", height: "100vh", touchAction: "none" }}
+      onWheel={onWheel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       <Canvas camera={{ position: [6, 6, 6], fov: 50 }}>
         <ambientLight intensity={0.6} />
         <directionalLight position={[10, 10, 5]} intensity={0.8} />
 
-        {/* OrbitControls: disable wheel-zoom while Shift is held (so Shift+scroll only adjusts spacing). */}
-        <OrbitControls enablePan enableZoom={!isShiftDown} enableRotate />
+        {/* OrbitControls: disable wheel-zoom while Shift is held (so Shift+scroll only adjusts spacing).
+            On mobile we default to locked camera (no rotate/zoom) and expose a toggle in the UI. */}
+        <OrbitControls
+          enablePan={!isMobile}
+          // keep desktop zoom enabled except when Shift is held (Shift+scroll used for spacing)
+          enableZoom={!isMobile && !isShiftDown}
+          // on desktop allow rotate by default; on mobile rotate is disabled by default
+          enableRotate={!isMobile}
+          // ensure left mouse button rotates, middle dolly, right pan — explicit mapping fixes platform differences
+          mouseButtons={{
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.PAN,
+          }}
+        />
 
         <group>
           {board.map((layer, z) =>
@@ -150,7 +141,9 @@ export default function App() {
       >
         <div style={{ fontWeight: 600 }}>Spacing: {spacing.toFixed(2)}</div>
         <div style={{ opacity: 0.85 }}>
-          Scroll to zoom. Hold Shift + scroll to change spacing
+          {isMobile
+            ? "Tap to place. Pinch to change spacing"
+            : "Scroll to zoom. Hold Shift + scroll to change spacing"}
         </div>
         <div style={{ opacity: 0.7, fontSize: 12 }}>
           min: {MIN_SPACING}, max: {MAX_SPACING}
@@ -235,11 +228,86 @@ export default function App() {
           >
             Start vs AI
           </button>
+          {/* Spacing controls accessible from the control panel (desktop + mobile) */}
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              marginTop: 8,
+              alignItems: "center",
+            }}
+          >
+            <button
+              aria-label="Decrease spacing"
+              onClick={decreaseSpacing}
+              style={{ padding: "6px 10px" }}
+            >
+              −
+            </button>
+            <div style={{ color: "#fff", minWidth: 86, textAlign: "center" }}>
+              Spacing {spacing.toFixed(2)}
+            </div>
+            <button
+              aria-label="Increase spacing"
+              onClick={increaseSpacing}
+              style={{ padding: "6px 10px" }}
+            >
+              +
+            </button>
+            <button
+              aria-label="Reset spacing"
+              onClick={resetSpacing}
+              style={{ padding: "6px 10px", marginLeft: 8 }}
+            >
+              Reset
+            </button>
+          </div>
           <div className="hint">
             Start will clear the field and start AI (not implemented)
           </div>
         </div>
       </div>
+
+      {/* Mobile bottom toolbar for quick spacing */}
+      {isMobile && (
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            bottom: 12,
+            display: "flex",
+            gap: 10,
+            background: "rgba(0,0,0,0.5)",
+            padding: 8,
+            borderRadius: 10,
+            alignItems: "center",
+          }}
+        >
+          <button
+            aria-label="Spacing decrease"
+            onClick={decreaseSpacing}
+            style={{ padding: 10, fontSize: 18 }}
+          >
+            −
+          </button>
+          <button
+            aria-label="Spacing increase"
+            onClick={increaseSpacing}
+            style={{ padding: 10, fontSize: 18 }}
+          >
+            +
+          </button>
+
+          <button
+            aria-label="Reset spacing"
+            onClick={resetSpacing}
+            style={{ padding: 8, fontSize: 14 }}
+          >
+            Reset
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -260,28 +328,24 @@ function Cell({
 
   return (
     <group position={position}>
+      {/* Invisible larger mesh to improve touch hit area on mobile. This captures clicks/touches.
+          It also proxies hover state to the visible cube. */}
       <mesh
-        ref={meshRef}
-        scale={hovered ? 1.05 : 1}
-        onPointerOver={(e) => {
-          e.stopPropagation();
-          setHovered(true);
-        }}
-        onPointerOut={(e) => {
-          e.stopPropagation();
-          setHovered(false);
-        }}
-        onPointerDown={(e) => {
-          // stop propagation to prevent OrbitControls from taking the event while clicking
-          e.stopPropagation();
-        }}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
         onClick={(e) => {
           e.stopPropagation();
           onClick();
         }}
-        castShadow
-        receiveShadow
       >
+        <boxGeometry
+          args={[CUBE_SIZE + 0.4, CUBE_SIZE + 0.4, CUBE_SIZE + 0.4]}
+        />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {/* Visible cube (visual only) */}
+      <mesh ref={meshRef} scale={hovered ? 1.05 : 1} castShadow receiveShadow>
         <boxGeometry args={[CUBE_SIZE, CUBE_SIZE, CUBE_SIZE]} />
         <meshStandardMaterial
           transparent={true}
