@@ -25,9 +25,9 @@ pub enum GameState {
 #[wasm_bindgen]
 pub fn find_ai_move(x_mask: u64, o_mask: u64, player: u8, difficulty: AiDifficulty) -> i32 {
     let max_depth = match difficulty {
-        AiDifficulty::Easy => 2,
-        AiDifficulty::Medium => 4,
-        AiDifficulty::Hard => 6,
+        AiDifficulty::Easy => 1,
+        AiDifficulty::Medium => 3,
+        AiDifficulty::Hard => 5,
     };
     let board = Board { x_mask, o_mask };
     let game = Game {
