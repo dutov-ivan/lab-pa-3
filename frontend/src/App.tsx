@@ -100,6 +100,53 @@ export default function App() {
     new Set()
   );
 
+  // Web Worker for AI computations (initialized once)
+  const aiWorkerRef = React.useRef<Worker | null>(null);
+  const aiReqIdRef = React.useRef(0);
+  const aiPendingRef = React.useRef(new Map<number, (res: any) => void>());
+
+  // Create the worker once on mount and teardown on unmount.
+  React.useEffect(() => {
+    // Only run in browsers that support Worker + module workers
+    if (typeof window !== "undefined" && typeof Worker !== "undefined") {
+      try {
+        // Vite-friendly worker creation
+        const worker = new Worker(
+          new URL("./wasm/aiWorker.ts", import.meta.url),
+          {
+            type: "module",
+          }
+        );
+
+        worker.onmessage = (ev: MessageEvent) => {
+          const { id, move, error } = ev.data || {};
+          const resolver = aiPendingRef.current.get(id);
+          if (resolver) {
+            resolver({ move, error });
+            aiPendingRef.current.delete(id);
+          }
+        };
+
+        aiWorkerRef.current = worker;
+      } catch (err) {
+        // If worker creation fails, keep aiWorkerRef null and fallback to main-thread call
+        console.warn(
+          "Failed to create AI worker, falling back to main thread:",
+          err
+        );
+        aiWorkerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (aiWorkerRef.current) {
+        aiWorkerRef.current.terminate();
+        aiWorkerRef.current = null;
+      }
+      aiPendingRef.current.clear();
+    };
+  }, []);
+
   // Initialize WASM module
   React.useEffect(() => {
     initWasm()
@@ -253,12 +300,37 @@ export default function App() {
       };
       const difficulty = difficultyMap[aiLevel];
 
-      const moveIdx = find_ai_move(x_mask, o_mask, player, difficulty);
+      // If we have a worker, run the WASM AI computation off the main thread.
+      let moveIdx: number | null = null;
 
-      if (moveIdx >= 0 && moveIdx < 64) {
+      const worker = aiWorkerRef.current;
+      if (worker) {
+        // send request and await response via a simple promise map
+        const id = ++aiReqIdRef.current;
+        const promise: Promise<{ move?: number; error?: any }> = new Promise(
+          (resolve) => {
+            aiPendingRef.current.set(id, resolve);
+            // post x_mask and o_mask (BigInt supported by structured clone)
+            worker.postMessage({ id, x_mask, o_mask, player, difficulty });
+          }
+        );
+
+        const res = await promise;
+        if (res && res.error) {
+          console.error("AI worker error:", res.error);
+        } else if (res && typeof res.move === "number") {
+          moveIdx = res.move;
+        }
+      } else {
+        // Fallback: call WASM on the main thread (keeps previous behavior).
+        // This may block UI for heavy computations but only occurs when workers are unavailable.
+        moveIdx = find_ai_move(x_mask, o_mask, player, difficulty);
+      }
+
+      if (moveIdx !== null && moveIdx >= 0 && moveIdx < 64) {
         const [z, y, x] = moveIndexToCoords(moveIdx);
         makeMove(z, y, x, aiSide);
-        // Game state is checked inside makeMove, so no need to check again here
+        // Game state is checked inside makeMove
       }
     } catch (err) {
       console.error("Error playing AI move:", err);
