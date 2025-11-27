@@ -4,6 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 import * as THREE from "three";
 import useInteractions from "./hooks/useInteractions";
+import initWasm, { find_ai_move, AiDifficulty } from "./wasm/wasm_rust.js";
 
 type Player = "X" | "O" | " ";
 
@@ -22,6 +23,36 @@ const initializeBoard = (): Player[][][] => {
     )
   );
 };
+
+// Convert 3D board array to bitmasks (x_mask, o_mask)
+function boardToBitmasks(board: Player[][][]): {
+  x_mask: bigint;
+  o_mask: bigint;
+} {
+  let x_mask = 0n;
+  let o_mask = 0n;
+  for (let z = 0; z < SIZE; z++) {
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const idx = BigInt(x + 4 * y + 16 * z);
+        if (board[z][y][x] === "X") {
+          x_mask |= 1n << idx;
+        } else if (board[z][y][x] === "O") {
+          o_mask |= 1n << idx;
+        }
+      }
+    }
+  }
+  return { x_mask, o_mask };
+}
+
+// Convert move index (0-63) to (z, y, x) coordinates
+function moveIndexToCoords(moveIdx: number): [number, number, number] {
+  const z = Math.floor(moveIdx / 16);
+  const y = Math.floor((moveIdx % 16) / 4);
+  const x = moveIdx % 4;
+  return [z, y, x];
+}
 
 export default function App() {
   const [board, setBoard] = React.useState<Player[][][]>(initializeBoard);
@@ -45,33 +76,149 @@ export default function App() {
     step: SPACING_STEP,
   });
 
-  // UI-only control panel state (no gameplay logic yet)
+  // Game state
   const [playerSide, setPlayerSide] = React.useState<"X" | "O">("X");
   const [aiLevel, setAiLevel] = React.useState<"easy" | "medium" | "hard">(
     "medium"
   );
+  const [isAIGame, setIsAIGame] = React.useState(false);
+  const [isAITurn, setIsAITurn] = React.useState(false);
+  const [wasmReady, setWasmReady] = React.useState(false);
+
+  // Initialize WASM module
+  React.useEffect(() => {
+    initWasm()
+      .then(() => {
+        setWasmReady(true);
+      })
+      .catch((err: unknown) => {
+        console.error("Failed to initialize WASM:", err);
+      });
+  }, []);
+  // Make a move on the board
+  const makeMove = React.useCallback(
+    (z: number, y: number, x: number, player: Player) => {
+      // If the cell is already taken, do nothing.
+      if (board[z][y][x] !== " ") {
+        return false;
+      }
+
+      // Create a new board state with the updated cell.
+      const newBoard = board.map((layer, lz) =>
+        layer.map((row, ly) =>
+          row.map((cell, lx) => {
+            if (lz === z && ly === y && lx === x) {
+              return player;
+            }
+            return cell;
+          })
+        )
+      );
+      setBoard(newBoard);
+
+      // Toggle the current player for the next turn.
+      setCurrentPlayer((prev) => (prev === "X" ? "O" : "X"));
+      return true;
+    },
+    [board]
+  );
+
+  // Play AI move
+  const playAIMove = React.useCallback(async () => {
+    if (!wasmReady || !isAIGame || isAITurn) return;
+
+    const aiSide = playerSide === "X" ? "O" : "X";
+
+    // Check if it's actually the AI's turn
+    if (currentPlayer !== aiSide) return;
+
+    setIsAITurn(true);
+
+    try {
+      const { x_mask, o_mask } = boardToBitmasks(board);
+      const player = aiSide === "X" ? 1 : 2;
+
+      // Map difficulty string to enum
+      const difficultyMap: Record<string, number> = {
+        easy: AiDifficulty.Easy,
+        medium: AiDifficulty.Medium,
+        hard: AiDifficulty.Hard,
+      };
+      const difficulty = difficultyMap[aiLevel];
+
+      const moveIdx = find_ai_move(x_mask, o_mask, player, difficulty);
+
+      if (moveIdx >= 0 && moveIdx < 64) {
+        const [z, y, x] = moveIndexToCoords(moveIdx);
+        makeMove(z, y, x, aiSide);
+      }
+    } catch (err) {
+      console.error("Error playing AI move:", err);
+    } finally {
+      setIsAITurn(false);
+    }
+  }, [
+    wasmReady,
+    isAIGame,
+    isAITurn,
+    board,
+    playerSide,
+    aiLevel,
+    makeMove,
+    currentPlayer,
+  ]);
+
+  // Trigger AI move after player move
+  React.useEffect(() => {
+    if (isAIGame && wasmReady && !isAITurn) {
+      const aiSide = playerSide === "X" ? "O" : "X";
+      if (currentPlayer === aiSide) {
+        // Small delay to allow UI to update
+        const timer = setTimeout(() => {
+          playAIMove();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isAIGame, wasmReady, isAITurn, currentPlayer, playerSide, playAIMove]);
+
   const handleClick = (z: number, y: number, x: number) => {
-    // If the cell is already taken, do nothing.
-    if (board[z][y][x] !== " ") {
+    // If AI game is active and it's AI's turn, ignore clicks
+    if (isAIGame && isAITurn) {
       return;
     }
 
-    // Create a new board state with the updated cell.
-    const newBoard = board.map((layer, lz) =>
-      layer.map((row, ly) =>
-        row.map((cell, lx) => {
-          if (lz === z && ly === y && lx === x) {
-            return currentPlayer;
-          }
-          return cell;
-        })
-      )
-    );
-    setBoard(newBoard);
+    // If AI game is active and it's not player's turn, ignore clicks
+    if (isAIGame && currentPlayer !== playerSide) {
+      return;
+    }
 
-    // Toggle the current player for the next turn.
-    setCurrentPlayer(currentPlayer === "X" ? "O" : "X");
+    // Make the move
+    makeMove(z, y, x, currentPlayer);
   };
+
+  // Start AI game
+  const startAIGame = React.useCallback(() => {
+    if (!wasmReady) {
+      console.warn("WASM not ready yet");
+      return;
+    }
+
+    setBoard(initializeBoard());
+    setIsAIGame(true);
+    setIsAITurn(false);
+
+    // If AI goes first (playerSide is O, so AI is X), set current player to X
+    // Otherwise, player (X) goes first
+    // The useEffect will automatically trigger AI move when currentPlayer === aiSide
+    if (playerSide === "O") {
+      // AI (X) goes first
+      setCurrentPlayer("X");
+    } else {
+      // Player (X) goes first
+      setCurrentPlayer("X");
+    }
+  }, [wasmReady, playerSide]);
 
   // center offset so the cube cluster is centered at origin (recomputed when spacing changes)
   const centerOffset = ((SIZE - 1) * spacing) / 2;
@@ -222,11 +369,14 @@ export default function App() {
         <div className="control-actions">
           <button
             className="start-btn"
-            onClick={() => {
-              /* Not implemented: starting AI and clearing board is out of scope for this change */
-            }}
+            onClick={startAIGame}
+            disabled={!wasmReady || isAITurn}
           >
-            Start vs AI
+            {!wasmReady
+              ? "Loading WASM..."
+              : isAITurn
+              ? "AI thinking..."
+              : "Start vs AI"}
           </button>
           {/* Spacing controls accessible from the control panel (desktop + mobile) */}
           <div
@@ -262,9 +412,18 @@ export default function App() {
               Reset
             </button>
           </div>
-          <div className="hint">
-            Start will clear the field and start AI (not implemented)
-          </div>
+          {isAIGame && (
+            <div
+              className="hint"
+              style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}
+            >
+              {isAITurn
+                ? "AI is thinking..."
+                : currentPlayer === playerSide
+                ? "Your turn"
+                : "AI's turn"}
+            </div>
+          )}
         </div>
       </div>
 
