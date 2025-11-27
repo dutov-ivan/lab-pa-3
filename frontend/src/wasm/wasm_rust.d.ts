@@ -1,17 +1,27 @@
 /* tslint:disable */
 /* eslint-disable */
+export function get_winning_mask(x_mask: bigint, o_mask: bigint): bigint;
+export function check_game_state(x_mask: bigint, o_mask: bigint): GameState;
 export function find_ai_move(x_mask: bigint, o_mask: bigint, player: number, difficulty: AiDifficulty): number;
 export enum AiDifficulty {
   Easy = 0,
   Medium = 1,
   Hard = 2,
 }
+export enum GameState {
+  Ongoing = 0,
+  Draw = 1,
+  XWins = 2,
+  OWins = 3,
+}
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
+  readonly check_game_state: (a: bigint, b: bigint) => number;
   readonly find_ai_move: (a: bigint, b: bigint, c: number, d: number) => number;
+  readonly get_winning_mask: (a: bigint, b: bigint) => bigint;
   readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_start: () => void;
 }

@@ -32,6 +32,26 @@ function getStringFromWasm0(ptr, len) {
 /**
  * @param {bigint} x_mask
  * @param {bigint} o_mask
+ * @returns {bigint}
+ */
+export function get_winning_mask(x_mask, o_mask) {
+    const ret = wasm.get_winning_mask(x_mask, o_mask);
+    return BigInt.asUintN(64, ret);
+}
+
+/**
+ * @param {bigint} x_mask
+ * @param {bigint} o_mask
+ * @returns {GameState}
+ */
+export function check_game_state(x_mask, o_mask) {
+    const ret = wasm.check_game_state(x_mask, o_mask);
+    return ret;
+}
+
+/**
+ * @param {bigint} x_mask
+ * @param {bigint} o_mask
  * @param {number} player
  * @param {AiDifficulty} difficulty
  * @returns {number}
@@ -48,6 +68,15 @@ export const AiDifficulty = Object.freeze({
     Easy: 0, "0": "Easy",
     Medium: 1, "1": "Medium",
     Hard: 2, "2": "Hard",
+});
+/**
+ * @enum {0 | 1 | 2 | 3}
+ */
+export const GameState = Object.freeze({
+    Ongoing: 0, "0": "Ongoing",
+    Draw: 1, "1": "Draw",
+    XWins: 2, "2": "XWins",
+    OWins: 3, "3": "OWins",
 });
 
 const EXPECTED_RESPONSE_TYPES = new Set(['basic', 'cors', 'default']);
