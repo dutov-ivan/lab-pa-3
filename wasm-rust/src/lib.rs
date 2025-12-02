@@ -4,7 +4,6 @@ pub mod engine;
 pub mod game;
 
 use js_sys::Math;
-use js_sys::Math;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
