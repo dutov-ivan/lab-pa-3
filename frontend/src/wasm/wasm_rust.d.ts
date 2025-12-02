@@ -1,8 +1,8 @@
 /* tslint:disable */
 /* eslint-disable */
-export function get_winning_mask(x_mask: bigint, o_mask: bigint): bigint;
-export function check_game_state(x_mask: bigint, o_mask: bigint): GameState;
 export function find_ai_move(x_mask: bigint, o_mask: bigint, player: number, difficulty: AiDifficulty): number;
+export function check_game_state(x_mask: bigint, o_mask: bigint): GameState;
+export function get_winning_mask(x_mask: bigint, o_mask: bigint): bigint;
 export enum AiDifficulty {
   Easy = 0,
   Medium = 1,
@@ -19,8 +19,8 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly check_game_state: (a: bigint, b: bigint) => number;
   readonly find_ai_move: (a: bigint, b: bigint, c: number, d: number) => number;
+  readonly check_game_state: (a: bigint, b: bigint) => number;
   readonly get_winning_mask: (a: bigint, b: bigint) => bigint;
   readonly __wbindgen_externrefs: WebAssembly.Table;
   readonly __wbindgen_start: () => void;

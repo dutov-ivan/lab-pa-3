@@ -32,11 +32,13 @@ function getStringFromWasm0(ptr, len) {
 /**
  * @param {bigint} x_mask
  * @param {bigint} o_mask
- * @returns {bigint}
+ * @param {number} player
+ * @param {AiDifficulty} difficulty
+ * @returns {number}
  */
-export function get_winning_mask(x_mask, o_mask) {
-    const ret = wasm.get_winning_mask(x_mask, o_mask);
-    return BigInt.asUintN(64, ret);
+export function find_ai_move(x_mask, o_mask, player, difficulty) {
+    const ret = wasm.find_ai_move(x_mask, o_mask, player, difficulty);
+    return ret;
 }
 
 /**
@@ -52,13 +54,11 @@ export function check_game_state(x_mask, o_mask) {
 /**
  * @param {bigint} x_mask
  * @param {bigint} o_mask
- * @param {number} player
- * @param {AiDifficulty} difficulty
- * @returns {number}
+ * @returns {bigint}
  */
-export function find_ai_move(x_mask, o_mask, player, difficulty) {
-    const ret = wasm.find_ai_move(x_mask, o_mask, player, difficulty);
-    return ret;
+export function get_winning_mask(x_mask, o_mask) {
+    const ret = wasm.get_winning_mask(x_mask, o_mask);
+    return BigInt.asUintN(64, ret);
 }
 
 /**
