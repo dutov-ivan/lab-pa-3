@@ -2,10 +2,24 @@ import React from "react";
 import styles from "./App.module.css";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
+import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import useInteractions from "./hooks/useInteractions";
 import Cell from "./components/Cell";
-import useGame from "./hooks/useGame";
+import SpacingOverlay from "./components/SpacingOverlay";
+import ControlPanel from "./components/ControlPanel";
+import GameResultModal from "./components/GameResultModal";
+import MobileToolbar from "./components/MobileToolbar";
+import initWasm, {
+  find_ai_move,
+  AiDifficulty,
+  check_game_state,
+  GameState,
+  get_winning_mask,
+} from "./wasm/wasm_rust.js";
+
+type Player = "X" | "O" | " ";
+
 const SIZE = 4;
 // spacing controls
 const MIN_SPACING = 0.6; // minimum allowed spacing between cube centers
@@ -108,223 +122,46 @@ export default function App() {
         </group>
       </Canvas>
 
-      {/* small overlay to show current spacing and instructions */}
-      <div className={styles.spacingOverlay}>
-        <div className={styles.spacingValue}>Spacing: {spacing.toFixed(2)}</div>
-        <div className={styles.spacingInstruction}>
-          {isMobile
-            ? "Tap to place. Pinch to change spacing"
-            : "Scroll to zoom. Hold Shift + scroll to change spacing"}
-        </div>
-        <div className={styles.spacingRange}>
-          min: {MIN_SPACING}, max: {MAX_SPACING}
-        </div>
-      </div>
+      <SpacingOverlay
+        spacing={spacing}
+        min={MIN_SPACING}
+        max={MAX_SPACING}
+        isMobile={isMobile}
+      />
 
-      {/* Control panel mockup (UI-only) */}
-      <div
-        className={styles.controlPanel}
-        role="region"
-        aria-label="Game controls"
-      >
-        <div className={styles.panelTitle}>Play vs AI</div>
-
-        <div className={styles.controlSection}>
-          <div className={styles.sectionLabel}>Choose side</div>
-          <div className={styles.sideOptions}>
-            <label
-              className={`${styles.sideBtn} ${
-                playerSide === "X" ? styles.active : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="side"
-                value="X"
-                checked={playerSide === "X"}
-                onChange={() => setPlayerSide("X")}
-                disabled={gameResult !== null}
-              />
-              <span className={styles.sideLabel}>X</span>
-            </label>
-
-            <label
-              className={`${styles.sideBtn} ${
-                playerSide === "O" ? styles.active : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="side"
-                value="O"
-                checked={playerSide === "O"}
-                onChange={() => setPlayerSide("O")}
-                disabled={gameResult !== null}
-              />
-              <span className={styles.sideLabel}>O</span>
-            </label>
-          </div>
-        </div>
-
-        <div className={styles.controlSection}>
-          <div className={styles.sectionLabel}>AI level</div>
-          <div className={styles.aiOptions}>
-            <label
-              className={`${styles.aiItem} ${
-                aiLevel === "easy" ? styles.active : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai"
-                value="easy"
-                checked={aiLevel === "easy"}
-                onChange={() => setAiLevel("easy")}
-                disabled={gameResult !== null}
-              />
-              Easy
-            </label>
-            <label
-              className={`${styles.aiItem} ${
-                aiLevel === "medium" ? styles.active : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai"
-                value="medium"
-                checked={aiLevel === "medium"}
-                onChange={() => setAiLevel("medium")}
-                disabled={gameResult !== null}
-              />
-              Medium
-            </label>
-            <label
-              className={`${styles.aiItem} ${
-                aiLevel === "hard" ? styles.active : ""
-              }`}
-            >
-              <input
-                type="radio"
-                name="ai"
-                value="hard"
-                checked={aiLevel === "hard"}
-                onChange={() => setAiLevel("hard")}
-                disabled={gameResult !== null}
-              />
-              Hard
-            </label>
-          </div>
-        </div>
-
-        <div className={styles.controlActions}>
-          {gameResult === null ? (
-            <button
-              className={styles.startBtn}
-              onClick={startAIGame}
-              disabled={!wasmReady || isAITurn}
-            >
-              {!wasmReady
-                ? "Loading WASM..."
-                : isAITurn
-                ? "AI thinking..."
-                : "Start vs AI"}
-            </button>
-          ) : (
-            <button className={styles.resetBtn} onClick={resetGame}>
-              Reset Game
-            </button>
-          )}
-          {/* Spacing controls accessible from the control panel (desktop + mobile) */}
-          <div className={styles.spacingControls}>
-            <button
-              aria-label="Decrease spacing"
-              onClick={decreaseSpacing}
-              className={styles.spacingButton}
-            >
-              −
-            </button>
-            <div className={styles.spacingDisplay}>
-              Spacing {spacing.toFixed(2)}
-            </div>
-            <button
-              aria-label="Increase spacing"
-              onClick={increaseSpacing}
-              className={styles.spacingButton}
-            >
-              +
-            </button>
-            <button
-              aria-label="Reset spacing"
-              onClick={resetSpacing}
-              className={styles.spacingResetButton}
-            >
-              Reset
-            </button>
-          </div>
-          {isAIGame && gameResult === null && (
-            <div className={styles.hintWithMargin}>
-              {isAITurn
-                ? "AI is thinking..."
-                : currentPlayer === playerSide
-                ? "Your turn"
-                : "AI's turn"}
-            </div>
-          )}
-        </div>
-      </div>
+      <ControlPanel
+        playerSide={playerSide}
+        setPlayerSide={setPlayerSide}
+        aiLevel={aiLevel}
+        setAiLevel={setAiLevel}
+        startAIGame={startAIGame}
+        resetGame={resetGame}
+        wasmReady={wasmReady}
+        isAITurn={isAITurn}
+        isAIGame={isAIGame}
+        gameResult={gameResult}
+        spacing={spacing}
+        increaseSpacing={increaseSpacing}
+        decreaseSpacing={decreaseSpacing}
+        resetSpacing={resetSpacing}
+        currentPlayer={currentPlayer}
+      />
 
       {/* Game Result Modal */}
       {gameResult !== null && !closedGameResultModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
-            <h2 className={styles.modalTitle}>
-              {gameResult === "win"
-                ? "You Won!"
-                : gameResult === "loss"
-                ? "You Lost!"
-                : "It's a Draw!"}
-            </h2>
-            <div
-              className={styles.modalButton}
-              onClick={() => setClosedGameResultModal(true)}
-            >
-              {gameResult === "win"
-                ? "Yuppy"
-                : gameResult === "loss"
-                ? "Oh NOOO!"
-                : "The battle was intense"}
-            </div>
-          </div>
-        </div>
+        <GameResultModal
+          gameResult={gameResult}
+          onClose={() => setClosedGameResultModal(true)}
+        />
       )}
 
       {/* Mobile bottom toolbar for quick spacing */}
       {isMobile && (
-        <div className={styles.mobileToolbar}>
-          <button
-            aria-label="Spacing decrease"
-            onClick={decreaseSpacing}
-            className={styles.mobileToolbarButton}
-          >
-            −
-          </button>
-          <button
-            aria-label="Spacing increase"
-            onClick={increaseSpacing}
-            className={styles.mobileToolbarButton}
-          >
-            +
-          </button>
-
-          <button
-            aria-label="Reset spacing"
-            onClick={resetSpacing}
-            className={styles.mobileToolbarResetButton}
-          >
-            Reset
-          </button>
-        </div>
+        <MobileToolbar
+          increaseSpacing={increaseSpacing}
+          decreaseSpacing={decreaseSpacing}
+          resetSpacing={resetSpacing}
+        />
       )}
     </div>
   );
