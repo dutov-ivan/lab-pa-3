@@ -2,7 +2,7 @@ import React from "react";
 import * as THREE from "three";
 import { Text } from "@react-three/drei";
 
-type Player = "X" | "O" | " ";
+export type Player = "X" | "O" | " ";
 const CUBE_SIZE = 0.9; // keep same cube size as in App
 
 export default function Cell({

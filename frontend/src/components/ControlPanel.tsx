@@ -1,7 +1,5 @@
-import React from "react";
 import styles from "../App.module.css";
-
-type Player = "X" | "O";
+import type { Player } from "./Cell";
 
 export default function ControlPanel({
   playerSide,
@@ -21,7 +19,7 @@ export default function ControlPanel({
   currentPlayer,
 }: {
   playerSide: Player;
-  setPlayerSide: (p: Player) => void;
+  setPlayerSide: (p: "X" | "O") => void;
   aiLevel: "easy" | "medium" | "hard";
   setAiLevel: (l: "easy" | "medium" | "hard") => void;
   startAIGame: () => void;
@@ -34,7 +32,7 @@ export default function ControlPanel({
   increaseSpacing: () => void;
   decreaseSpacing: () => void;
   resetSpacing: () => void;
-  currentPlayer: "X" | "O";
+  currentPlayer: Player;
 }) {
   return (
     <div

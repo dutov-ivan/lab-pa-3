@@ -4,7 +4,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
 import useInteractions from "./hooks/useInteractions";
-import Cell from "./components/Cell";
+import Cell, { type Player } from "./components/Cell";
 import SpacingOverlay from "./components/SpacingOverlay";
 import ControlPanel from "./components/ControlPanel";
 import GameResultModal from "./components/GameResultModal";
@@ -17,13 +17,9 @@ import initWasm, {
   get_winning_mask,
 } from "./wasm/wasm_rust.js";
 
-type Player = "X" | "O" | " ";
-
 const SIZE = 4;
-const CUBE_SIZE = 0.9; // actual cube size (slightly smaller to create gaps)
-// spacing controls
 const MIN_SPACING = 0.6; // minimum allowed spacing between cube centers
-const MAX_SPACING = 3.0; // maximum allowed spacing between cube centers
+const MAX_SPACING = 4.0; // maximum allowed spacing between cube centers
 const DEFAULT_SPACING = 1.4; // default distance between cube centers
 const SPACING_STEP = 0.1; // spacing change per scroll tick
 
