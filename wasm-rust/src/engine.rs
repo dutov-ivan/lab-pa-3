@@ -4,11 +4,22 @@ use crate::game::{Game, Player};
 
 pub struct EngineConfig {
     pub max_depth: i32,
+    pub hard_mode: bool,
 }
 
 impl EngineConfig {
     pub fn new(max_depth: i32) -> Self {
-        Self { max_depth }
+        Self {
+            max_depth,
+            hard_mode: false,
+        }
+    }
+
+    pub fn new_with_hard(max_depth: i32, hard_mode: bool) -> Self {
+        Self {
+            max_depth,
+            hard_mode,
+        }
     }
 }
 
@@ -17,6 +28,74 @@ pub fn find_best_move(game: &Game, config: &EngineConfig) -> i32 {
 
     // This makes the engine work for either X or O.
     let is_maximizing = game.get_current_player() == Player::X;
+
+    // In hard mode: if there is exactly one move that prevents an immediate
+    // opponent win on the next turn, return it immediately.
+    if config.hard_mode {
+        let occupied = board.x_mask | board.o_mask;
+        let mut safe_moves: Vec<i32> = Vec::new();
+
+        let mut empty_bits = !occupied;
+        while empty_bits != 0 {
+            let move_pos = empty_bits.trailing_zeros() as i32;
+            let move_bit = 1u64 << move_pos;
+            let mut new_board = *board;
+
+            if is_maximizing {
+                new_board.x_mask |= move_bit;
+            } else {
+                new_board.o_mask |= move_bit;
+            }
+
+            // Now check whether the opponent has any immediate winning move
+            // after this simulated move. If they do, this candidate is bad.
+            let mut opp_can_win = false;
+            let mut opp_empty = !(new_board.x_mask | new_board.o_mask);
+            while opp_empty != 0 {
+                let opp_pos = opp_empty.trailing_zeros() as i32;
+                let opp_bit = 1u64 << opp_pos;
+                let mut opp_board = new_board;
+
+                if is_maximizing {
+                    // opponent is O
+                    opp_board.o_mask |= opp_bit;
+                    for &mask in &WIN_MASKS {
+                        if (opp_board.o_mask & mask) == mask {
+                            opp_can_win = true;
+                            break;
+                        }
+                    }
+                } else {
+                    // opponent is X
+                    opp_board.x_mask |= opp_bit;
+                    for &mask in &WIN_MASKS {
+                        if (opp_board.x_mask & mask) == mask {
+                            opp_can_win = true;
+                            break;
+                        }
+                    }
+                }
+
+                if opp_can_win {
+                    break;
+                }
+
+                opp_empty &= !opp_bit;
+            }
+
+            if !opp_can_win {
+                safe_moves.push(move_pos);
+            }
+
+            empty_bits &= !move_bit;
+        }
+
+        if safe_moves.len() == 1 {
+            let chosen = safe_moves[0];
+            println!("Hard-mode safe-move selected: {}", chosen);
+            return chosen;
+        }
+    }
 
     // The minimax function will now return a pair: (score, move).
     let (score, best_move) = minimax(*board, config.max_depth, is_maximizing, -1000000, 1000000);

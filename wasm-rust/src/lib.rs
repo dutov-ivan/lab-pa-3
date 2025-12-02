@@ -4,6 +4,7 @@ pub mod engine;
 pub mod game;
 
 use js_sys::Math;
+use js_sys::Math;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -25,37 +26,36 @@ pub enum GameState {
 
 #[wasm_bindgen]
 pub fn find_ai_move(x_mask: u64, o_mask: u64, player: u8, difficulty: AiDifficulty) -> i32 {
-    // Easy: pick a random legal move without using the engine.
-    match difficulty {
-        AiDifficulty::Easy => {
-            let occupied = x_mask | o_mask;
-            let mut avail: Vec<i32> = Vec::new();
-            for i in 0..64 {
-                if ((occupied >> i) & 1) == 0 {
-                    avail.push(i as i32);
-                }
+    if let AiDifficulty::Easy = difficulty {
+        let empty_cells = !(x_mask | o_mask);
+        let mut possible_moves = Vec::new();
+
+        for i in 0..64 {
+            if (empty_cells & (1u64 << i)) != 0 {
+                possible_moves.push(i);
             }
-            if avail.is_empty() {
-                return -1;
-            }
-            let idx = (Math::random() * (avail.len() as f64)).floor() as usize;
-            avail[idx]
         }
-        _ => {
-            let max_depth = match difficulty {
-                AiDifficulty::Medium => 3,
-                AiDifficulty::Hard => 5,
-                _ => 1, // fallback, though Easy handled above
-            };
-            let board = Board { x_mask, o_mask };
-            let game = Game {
-                board,
-                current_player: if player == 1 { Player::X } else { Player::O },
-            };
-            let config = EngineConfig { max_depth };
-            find_best_move(&game, &config)
+
+        if !possible_moves.is_empty() {
+            let idx = (Math::random() * (possible_moves.len() as f64)).floor() as usize;
+            return possible_moves[idx] as i32;
         }
+        return -1;
     }
+
+    let max_depth = match difficulty {
+        AiDifficulty::Easy => 1,
+        AiDifficulty::Medium => 3,
+        AiDifficulty::Hard => 5,
+    };
+    let board = Board { x_mask, o_mask };
+    let game = Game {
+        board,
+        current_player: if player == 1 { Player::X } else { Player::O },
+    };
+    let hard_mode = matches!(difficulty, AiDifficulty::Hard);
+    let config = EngineConfig::new_with_hard(max_depth, hard_mode);
+    find_best_move(&game, &config)
 }
 
 #[wasm_bindgen]
