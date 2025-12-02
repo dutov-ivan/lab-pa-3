@@ -8,4 +8,5 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 wasm-bindgen = { version = "0.2.105", features = ["serde-serialize"] }
+js-sys = "0.3"
 
